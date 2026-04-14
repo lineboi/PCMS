@@ -1,0 +1,23 @@
+# Maven
+target/
+*.class
+
+# Eclipse
+.classpath
+.settings/
+.project
+*.launch
+
+# IDE
+.idea/
+*.iml
+*.iws
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Sensitive config (users should set their own DB credentials)
