@@ -9,9 +9,18 @@ public class HibernateUtil {
 
     static {
         try {
-            sessionFactory = new Configuration()
-                    .configure("hibernate.cfg.xml")
-                    .buildSessionFactory();
+            Configuration config = new Configuration().configure("hibernate.cfg.xml");
+
+            // Override with environment variables when available (Railway / cloud)
+            String dbUrl  = System.getenv("DB_URL");
+            String dbUser = System.getenv("DB_USER");
+            String dbPass = System.getenv("DB_PASSWORD");
+
+            if (dbUrl  != null) config.setProperty("hibernate.connection.url",      dbUrl);
+            if (dbUser != null) config.setProperty("hibernate.connection.username",  dbUser);
+            if (dbPass != null) config.setProperty("hibernate.connection.password",  dbPass);
+
+            sessionFactory = config.buildSessionFactory();
         } catch (Exception e) {
             e.printStackTrace();
             throw new ExceptionInInitializerError(e);
