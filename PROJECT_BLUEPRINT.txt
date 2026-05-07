@@ -1,0 +1,165 @@
+# PCMS PROJECT BLUEPRINT: STEP-BY-STEP
+
+## 1. PROJECT CREATION (Maven pom.xml)
+This file defines the project structure, dependencies (Hibernate, MySQL, Servlets), and build settings.
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.pcms</groupId>
+    <artifactId>PCMS</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>war</packaging>
+
+    <properties>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+    </properties>
+
+    <dependencies>
+        <!-- Jakarta Servlet & JSP -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <version>5.0.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.servlet.jsp</groupId>
+            <artifactId>jakarta.servlet.jsp-api</artifactId>
+            <version>3.0.0</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Hibernate & MySQL -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <version>6.4.4.Final</version>
+        </dependency>
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <version>8.3.0</version>
+        </dependency>
+    </dependencies>
+</project>
+```
+
+---
+
+## 2. DATABASE CONFIGURATION
+### hibernate.cfg.xml
+Configures the connection to MySQL and enables automatic table creation (`update`).
+
+```xml
+<hibernate-configuration>
+    <session-factory>
+        <property name="hibernate.connection.driver_class">com.mysql.cj.jdbc.Driver</property>
+        <property name="hibernate.connection.url">jdbc:mysql://localhost:3306/PCM?useSSL=false</property>
+        <property name="hibernate.connection.username">root</property>
+        <property name="hibernate.connection.password">YOUR_PASSWORD</property>
+        <property name="hibernate.dialect">org.hibernate.dialect.MySQLDialect</property>
+        <property name="hibernate.hbm2ddl.auto">update</property>
+        
+        <!-- Entity Mappings -->
+        <mapping class="com.pcms.model.User"/>
+        <mapping class="com.pcms.model.PC"/>
+        <mapping class="com.pcms.model.Request"/>
+    </session-factory>
+</hibernate-configuration>
+```
+
+### Initial Admin Seed (SQL)
+```sql
+CREATE DATABASE PCM;
+INSERT INTO Users (firstName, lastName, email, password, role, status)
+VALUES ('Admin', 'User', 'admin@pcms.com', MD5('admin123'), 'ADMIN', 'Available');
+```
+
+---
+
+## 3. MVC PACKAGES & CLASSES
+
+### A. MODEL (com.pcms.model)
+Entities representing database tables.
+
+**User.java**
+```java
+@Entity @Table(name = "Users")
+public class User {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
+    private String firstName, lastName, email, password;
+    @Enumerated(EnumType.STRING)
+    private Role role; // ADMIN, TECHNICIAN
+}
+```
+
+### B. DAO (com.pcms.dao)
+Handles database operations using Hibernate.
+
+**UserDAO.java**
+```java
+public class UserDAO {
+    public User login(String email, String pwd) {
+        try (Session s = HibernateUtil.getSessionFactory().openSession()) {
+            return s.createQuery("FROM User WHERE email=:e AND password=:p", User.class)
+                    .setParameter("e", email).setParameter("p", pwd).uniqueResult();
+        }
+    }
+}
+```
+
+### C. SERVLET / CONTROLLER (com.pcms.servlet)
+Handles web requests and navigation.
+
+**LoginServlet.java**
+```java
+@WebServlet("/login")
+public class LoginServlet extends HttpServlet {
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) {
+        // 1. Get parameters
+        // 2. Hash password with MD5
+        // 3. Call UserDAO.login()
+        // 4. Set Session and Redirect
+    }
+}
+```
+
+### D. UTILS (com.pcms.util)
+Helpers for Hibernate sessions and Security.
+
+**HibernateUtil.java**: Manages the `SessionFactory`.
+**PasswordUtil.java**: Contains `md5(String input)` for hashing.
+
+---
+
+## 4. FRONT-END (JSP)
+Located in `src/main/webapp/views/`.
+
+**login.jsp** (Snippet)
+```html
+<form action="${pageContext.request.contextPath}/login" method="post">
+    <input type="email" name="email" required placeholder="Email">
+    <input type="password" name="password" required placeholder="Password">
+    <button type="submit">Sign In</button>
+</form>
+```
+
+---
+
+## 5. HOW TO RUN THE APPLICATION
+
+1.  **Environment Setup**: Install JDK 11 and MySQL 8.
+2.  **Database**: Create the `PCM` database.
+3.  **Config**: Update `hibernate.cfg.xml` with your MySQL username and password.
+4.  **Build**: Run `mvn clean package` in the project root.
+5.  **Deploy**: 
+    - Copy the generated `target/PCMS.war` to the `webapps/` folder of **Apache Tomcat 10**.
+    - OR use the Maven Tomcat plugin: `mvn tomcat7:run`.
+6.  **Access**: Open `http://localhost:8080/PCMS/` in your browser.
