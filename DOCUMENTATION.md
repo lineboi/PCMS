@@ -108,3 +108,14 @@ src/main/webapp/
 │   └── common/     # Shared Components (Header, Navbar)
 └── WEB-INF/    # Deployment Descriptor
 ```
+
+---
+
+## 9. Project Team & Contributors
+| Name | Reg Number | Role |
+|---|---|---|
+| **ABERA Ebenezer** | 224001481 | Team Lead & Backend |
+| **Elise Mucyo** | 224009506 | Backend Development |
+| **IKUZWE BANA Simplice** | 224007832 | Frontend Development |
+| **Ishami Gaelle Bega** | 224011161 | Frontend Development |
+| **IRADUKUNDA GWIZA Moise** | 224004102 | Database Design |
