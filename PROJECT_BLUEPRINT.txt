@@ -1,14 +1,16 @@
-# PCMS PROJECT BLUEPRINT: STEP-BY-STEP
+# FULL PROJECT BLUEPRINT: PC Maintenance Management System (PCMS)
 
-## 1. PROJECT CREATION (Maven pom.xml)
-This file defines the project structure, dependencies (Hibernate, MySQL, Servlets), and build settings.
+This document contains the complete core source code and file paths for the PCMS application.
 
+---
+
+## 1. PROJECT CONFIGURATION
+
+### Path: `/pom.xml`
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.pcms</groupId>
     <artifactId>PCMS</artifactId>
@@ -21,7 +23,6 @@ This file defines the project structure, dependencies (Hibernate, MySQL, Servlet
     </properties>
 
     <dependencies>
-        <!-- Jakarta Servlet & JSP -->
         <dependency>
             <groupId>jakarta.servlet</groupId>
             <artifactId>jakarta.servlet-api</artifactId>
@@ -34,8 +35,16 @@ This file defines the project structure, dependencies (Hibernate, MySQL, Servlet
             <version>3.0.0</version>
             <scope>provided</scope>
         </dependency>
-
-        <!-- Hibernate & MySQL -->
+        <dependency>
+            <groupId>jakarta.servlet.jsp.jstl</groupId>
+            <artifactId>jakarta.servlet.jsp.jstl-api</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish.web</groupId>
+            <artifactId>jakarta.servlet.jsp.jstl</artifactId>
+            <version>2.0.0</version>
+        </dependency>
         <dependency>
             <groupId>org.hibernate.orm</groupId>
             <artifactId>hibernate-core</artifactId>
@@ -50,12 +59,7 @@ This file defines the project structure, dependencies (Hibernate, MySQL, Servlet
 </project>
 ```
 
----
-
-## 2. DATABASE CONFIGURATION
-### hibernate.cfg.xml
-Configures the connection to MySQL and enables automatic table creation (`update`).
-
+### Path: `/src/main/resources/hibernate.cfg.xml`
 ```xml
 <hibernate-configuration>
     <session-factory>
@@ -65,8 +69,6 @@ Configures the connection to MySQL and enables automatic table creation (`update
         <property name="hibernate.connection.password">YOUR_PASSWORD</property>
         <property name="hibernate.dialect">org.hibernate.dialect.MySQLDialect</property>
         <property name="hibernate.hbm2ddl.auto">update</property>
-        
-        <!-- Entity Mappings -->
         <mapping class="com.pcms.model.User"/>
         <mapping class="com.pcms.model.PC"/>
         <mapping class="com.pcms.model.Request"/>
@@ -74,92 +76,202 @@ Configures the connection to MySQL and enables automatic table creation (`update
 </hibernate-configuration>
 ```
 
-### Initial Admin Seed (SQL)
-```sql
-CREATE DATABASE PCM;
-INSERT INTO Users (firstName, lastName, email, password, role, status)
-VALUES ('Admin', 'User', 'admin@pcms.com', MD5('admin123'), 'ADMIN', 'Available');
+---
+
+## 2. UTILITY LAYER
+
+### Path: `/src/main/java/com/pcms/util/HibernateUtil.java`
+```java
+package com.pcms.util;
+import org.hibernate.SessionFactory;
+import org.hibernate.cfg.Configuration;
+
+public class HibernateUtil {
+    private static SessionFactory sessionFactory;
+    static {
+        try {
+            Configuration config = new Configuration().configure("hibernate.cfg.xml");
+            sessionFactory = config.buildSessionFactory();
+        } catch (Exception e) { throw new ExceptionInInitializerError(e); }
+    }
+    public static SessionFactory getSessionFactory() { return sessionFactory; }
+}
+```
+
+### Path: `/src/main/java/com/pcms/util/PasswordUtil.java`
+```java
+package com.pcms.util;
+import java.security.MessageDigest;
+
+public class PasswordUtil {
+    public static String md5(String input) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] hash = md.digest(input.getBytes());
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hash) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (Exception e) { throw new RuntimeException(e); }
+    }
+}
 ```
 
 ---
 
-## 3. MVC PACKAGES & CLASSES
+## 3. MODEL LAYER (MVC: M)
 
-### A. MODEL (com.pcms.model)
-Entities representing database tables.
-
-**User.java**
+### Path: `/src/main/java/com/pcms/model/User.java`
 ```java
+package com.pcms.model;
+import jakarta.persistence.*;
+import java.util.Date;
+
 @Entity @Table(name = "Users")
 public class User {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
-    private String firstName, lastName, email, password;
-    @Enumerated(EnumType.STRING)
-    private Role role; // ADMIN, TECHNICIAN
+    private String firstName, lastName, email, password, phone;
+    @Enumerated(EnumType.STRING) private Role role;
+    @Enumerated(EnumType.STRING) private Status status;
+    public enum Role { ADMIN, TECHNICIAN }
+    public enum Status { Available, Not_available, Busy }
+    // Getters and Setters...
+    public String getFullName() { return firstName + " " + lastName; }
 }
 ```
 
-### B. DAO (com.pcms.dao)
-Handles database operations using Hibernate.
-
-**UserDAO.java**
+### Path: `/src/main/java/com/pcms/model/Request.java`
 ```java
+package com.pcms.model;
+import jakarta.persistence.*;
+import java.util.Date;
+
+@Entity @Table(name = "Requests")
+public class Request {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
+    private String firstName, lastName, email, telephone, unit, requestType;
+    @Temporal(TemporalType.DATE) private Date requestDate;
+    @Enumerated(EnumType.STRING) private RequestStatus status;
+    @ManyToOne(fetch = FetchType.EAGER) @JoinColumn(name = "technicianId") private User technician;
+    public enum RequestStatus { Pending, Technician_Assigned, Fixed, Not_fixed }
+    public Request() { this.requestDate = new Date(); this.status = RequestStatus.Pending; }
+    // Getters and Setters...
+    public String getFullName() { return firstName + " " + lastName; }
+}
+```
+
+---
+
+## 4. DAO LAYER (Data Access)
+
+### Path: `/src/main/java/com/pcms/dao/UserDAO.java`
+```java
+package com.pcms.dao;
+import com.pcms.model.User;
+import com.pcms.util.HibernateUtil;
+import org.hibernate.Session;
+import org.hibernate.query.Query;
+
 public class UserDAO {
-    public User login(String email, String pwd) {
-        try (Session s = HibernateUtil.getSessionFactory().openSession()) {
-            return s.createQuery("FROM User WHERE email=:e AND password=:p", User.class)
-                    .setParameter("e", email).setParameter("p", pwd).uniqueResult();
+    public User login(String email, String password) {
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            Query<User> q = session.createQuery("FROM User WHERE email = :email AND password = :pwd", User.class);
+            q.setParameter("email", email); q.setParameter("pwd", password);
+            return q.uniqueResult();
+        }
+    }
+    public java.util.List<User> getAllTechnicians() {
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            return session.createQuery("FROM User WHERE role = 'TECHNICIAN'", User.class).list();
         }
     }
 }
 ```
 
-### C. SERVLET / CONTROLLER (com.pcms.servlet)
-Handles web requests and navigation.
+---
 
-**LoginServlet.java**
+## 5. SERVLET LAYER (MVC: C)
+
+### Path: `/src/main/java/com/pcms/servlet/LoginServlet.java`
 ```java
-@WebServlet("/login")
+package com.pcms.servlet;
+import com.pcms.dao.UserDAO;
+import com.pcms.model.User;
+import com.pcms.util.PasswordUtil;
+import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.http.*;
+import java.io.IOException;
+
+@WebServlet(urlPatterns = {"/", "/login"})
 public class LoginServlet extends HttpServlet {
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) {
-        // 1. Get parameters
-        // 2. Hash password with MD5
-        // 3. Call UserDAO.login()
-        // 4. Set Session and Redirect
+    private UserDAO userDAO = new UserDAO();
+
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException, jakarta.servlet.ServletException {
+        req.getRequestDispatcher("/views/common/login.jsp").forward(req, resp);
+    }
+
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException, jakarta.servlet.ServletException {
+        String hashedPwd = PasswordUtil.md5(req.getParameter("password"));
+        User user = userDAO.login(req.getParameter("email"), hashedPwd);
+        if (user != null) {
+            req.getSession().setAttribute("loggedUser", user);
+            resp.sendRedirect(req.getContextPath() + (user.getRole() == User.Role.ADMIN ? "/admin/dashboard" : "/technician/dashboard"));
+        } else {
+            req.setAttribute("error", "Invalid credentials");
+            req.getRequestDispatcher("/views/common/login.jsp").forward(req, resp);
+        }
     }
 }
 ```
 
-### D. UTILS (com.pcms.util)
-Helpers for Hibernate sessions and Security.
-
-**HibernateUtil.java**: Manages the `SessionFactory`.
-**PasswordUtil.java**: Contains `md5(String input)` for hashing.
-
 ---
 
-## 4. FRONT-END (JSP)
-Located in `src/main/webapp/views/`.
+## 6. FRONT-END LAYER (MVC: V)
 
-**login.jsp** (Snippet)
-```html
-<form action="${pageContext.request.contextPath}/login" method="post">
-    <input type="email" name="email" required placeholder="Email">
-    <input type="password" name="password" required placeholder="Password">
-    <button type="submit">Sign In</button>
-</form>
+### Path: `/src/main/webapp/views/common/login.jsp`
+```jsp
+<%@ page contentType="text/html;charset=UTF-8" %>
+<html>
+<head><title>PCMS - Login</title><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css"></head>
+<body class="bg-light d-flex align-items-center justify-content-center vh-100">
+    <div class="card p-4 shadow-sm" style="width: 400px;">
+        <h3 class="text-center mb-4">PCMS Login</h3>
+        <c:if test="${not empty error}"><div class="alert alert-danger">${error}</div></c:if>
+        <form method="post" action="${pageContext.request.contextPath}/login">
+            <div class="mb-3"><label>Email</label><input type="email" name="email" class="form-control" required></div>
+            <div class="mb-3"><label>Password</label><input type="password" name="password" class="form-control" required></div>
+            <button type="submit" class="btn btn-primary w-100">Sign In</button>
+        </form>
+    </div>
+</body>
+</html>
+```
+
+### Path: `/src/main/webapp/views/common/navbar.jsp`
+```jsp
+<%@ page contentType="text/html;charset=UTF-8" %>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark px-4">
+    <a class="navbar-brand fw-bold" href="#">PCMS</a>
+    <div class="collapse navbar-collapse">
+        <ul class="navbar-nav ms-auto align-items-center">
+            <li class="nav-item me-3 text-light">${sessionScope.loggedUser.fullName}</li>
+            <li class="nav-item"><a class="btn btn-outline-light btn-sm" href="${pageContext.request.contextPath}/logout">Logout</a></li>
+        </ul>
+    </div>
+</nav>
 ```
 
 ---
 
-## 5. HOW TO RUN THE APPLICATION
+## 7. SETUP & EXECUTION
 
-1.  **Environment Setup**: Install JDK 11 and MySQL 8.
-2.  **Database**: Create the `PCM` database.
-3.  **Config**: Update `hibernate.cfg.xml` with your MySQL username and password.
-4.  **Build**: Run `mvn clean package` in the project root.
-5.  **Deploy**: 
-    - Copy the generated `target/PCMS.war` to the `webapps/` folder of **Apache Tomcat 10**.
-    - OR use the Maven Tomcat plugin: `mvn tomcat7:run`.
-6.  **Access**: Open `http://localhost:8080/PCMS/` in your browser.
+1. **DB Setup**: Create MySQL database `PCM`.
+2. **Admin Seed**: 
+   ```sql
+   INSERT INTO Users (firstName, lastName, email, password, role, status)
+   VALUES ('Admin', 'User', 'admin@pcms.com', MD5('admin123'), 'ADMIN', 'Available');
+   ```
+3. **Build**: `mvn clean package`.
+4. **Deploy**: Deploy the generated `PCMS.war` to Tomcat 10.
+5. **URL**: `http://localhost:8080/PCMS/`
